@@ -218,4 +218,26 @@ function renderTrainings() {
             return;
           }
 
-          ins
+          inschrijvingen[sessieId].push({naam, rol});
+          saveData();
+          renderTrainings();
+      alert("Inschrijving succesvol!");
+    });
+
+    sessieDiv.appendChild(inschrijfForm);
+  }
+
+  container.appendChild(sessieDiv);
+});
+
+trainingsList.appendChild(container);
+if (!datum || !tijdStart || !tijdEind || !locatie) {
+  alert("Vul alle sessiegegevens volledig in.");
+  return;
+}
+sessies.push({
+  datum,
+  tijdStart,
+  tijdEind,
+  locatie,
+});
