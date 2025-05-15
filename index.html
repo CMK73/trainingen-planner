@@ -27,4 +27,195 @@
   <h2>Admin login</h2>
   <label for="admin-password">Wachtwoord:</label>
   <input type="password" id="admin-password" />
-  <button id="
+  <button id="btn-admin-login">Inloggen</button>
+  <p id="admin-login-error" class="error hidden">Verkeerd wachtwoord</p>
+</div>
+
+<!-- Admin panel -->
+<div id="admin-panel" class="hidden">
+  <h2>Training toevoegen</h2>
+  <form id="training-form">
+    <label>Titel:
+      <input type="text" id="training-title" required />
+    </label>
+    <label>Omschrijving:
+      <textarea id="training-description" rows="3"></textarea>
+    </label>
+    <div id="sessions-container">
+      <h3>Data en tijden</h3>
+      <div class="session-input">
+        <label>Datum:
+          <input type="date" class="session-date" required />
+        </label>
+        <label>Tijd:
+          <input type="time" class="session-time-start" required />
+          tot
+          <input type="time" class="session-time-end" required />
+        </label>
+        <label>Locatie:
+          <input type="text" class="session-location" required />
+        </label>
+      </div>
+    </div>
+    <button type="button" id="btn-add-session">Datum toevoegen</button>
+    <br/>
+    <button type="submit">Training opslaan</button>
+  </form>
+  <button id="btn-admin-logout" style="margin-top: 20px;">Uitloggen</button>
+</div>
+
+<hr/>
+
+<!-- Filters en overzicht -->
+<div class="filters">
+  <label for="role-filter">Filter op rol:</label>
+  <select id="role-filter">
+    <option value="all">Alle rollen</option>
+    <option value="trainer">Trainer</option>
+    <option value="acteur">Acteur</option>
+  </select>
+</div>
+
+<h2>Beschikbare trainingen</h2>
+<div id="trainings-list">
+  <!-- Hier komen trainingen -->
+</div>
+
+<script>
+// Data in localStorage keys
+const STORAGE_TRAININGS = "trainingen_planner_trainings";
+const STORAGE_INSCHRIJVINGEN = "trainingen_planner_inschrijvingen";
+
+// Admin wachtwoord
+const ADMIN_PASSWORD = "admin123";
+
+let trainingen = [];
+let inschrijvingen = {};
+let isAdmin = false;
+
+const adminLoginSection = document.getElementById("admin-login-section");
+const adminPanel = document.getElementById("admin-panel");
+const adminPasswordInput = document.getElementById("admin-password");
+const btnAdminLogin = document.getElementById("btn-admin-login");
+const btnAdminLogout = document.getElementById("btn-admin-logout");
+const adminLoginError = document.getElementById("admin-login-error");
+
+const trainingForm = document.getElementById("training-form");
+const sessionsContainer = document.getElementById("sessions-container");
+const btnAddSession = document.getElementById("btn-add-session");
+
+const trainingsList = document.getElementById("trainings-list");
+const roleFilter = document.getElementById("role-filter");
+
+function saveData() {
+  localStorage.setItem(STORAGE_TRAININGS, JSON.stringify(trainingen));
+  localStorage.setItem(STORAGE_INSCHRIJVINGEN, JSON.stringify(inschrijvingen));
+}
+
+function loadData() {
+  const t = localStorage.getItem(STORAGE_TRAININGS);
+  trainingen = t ? JSON.parse(t) : [];
+  const i = localStorage.getItem(STORAGE_INSCHRIJVINGEN);
+  inschrijvingen = i ? JSON.parse(i) : {};
+}
+
+function renderTrainings() {
+  trainingsList.innerHTML = "";
+  const filterRol = roleFilter.value;
+
+  if (trainingen.length === 0) {
+    trainingsList.innerHTML = "<p>Geen trainingen gepland.</p>";
+    return;
+  }
+
+  trainingen.forEach((training, tIndex) => {
+    const container = document.createElement("div");
+    container.className = "training";
+
+    const title = document.createElement("h3");
+    title.textContent = training.titel;
+    container.appendChild(title);
+
+    if(training.omschrijving) {
+      const desc = document.createElement("p");
+      desc.textContent = training.omschrijving;
+      container.appendChild(desc);
+    }
+
+    training.sessions.forEach((sessie, sIndex) => {
+      // Filter op rol: inschrijving of niet
+      const sessieId = `${tIndex}_${sIndex}`;
+      let inschrijvingenSessie = inschrijvingen[sessieId] || [];
+      if (filterRol !== "all") {
+        // Toon alleen sessies waar inschrijvingen van die rol zijn, of toon ze altijd?  
+        // Hier tonen we alle sessies, maar filteren inschrijvingen hieronder.
+      }
+
+      const sessieDiv = document.createElement("div");
+      sessieDiv.className = "session";
+
+      const datumText = new Date(sessie.datum).toLocaleDateString("nl-NL", {day:"2-digit", month:"2-digit", year:"numeric"});
+      sessieDiv.innerHTML = `<strong>Datum:</strong> ${datumText} | <strong>Tijd:</strong> ${sessie.tijdStart} - ${sessie.tijdEind} | <strong>Locatie:</strong> ${sessie.locatie}`;
+
+      // Inschrijvingen per sessie
+      const inschrijvingenList = document.createElement("div");
+      inschrijvingenList.className = "inschrijvingen";
+
+      let inschrijvingenTekst = "";
+      if (inschrijvingenSessie.length === 0) {
+        inschrijvingenTekst = "Nog geen inschrijvingen.";
+      } else {
+        const filtered = filterRol === "all" ? inschrijvingenSessie : inschrijvingenSessie.filter(i => i.rol === filterRol);
+        if(filtered.length === 0) {
+          inschrijvingenTekst = "Geen inschrijvingen voor deze rol.";
+        } else {
+          inschrijvingenTekst = "Ingeschreven: " + filtered.map(i => `${i.naam} (${i.rol})`).join(", ");
+        }
+      }
+      inschrijvingenList.textContent = inschrijvingenTekst;
+
+      sessieDiv.appendChild(inschrijvingenList);
+
+      // Inschrijven knop (voor niet-admin)
+      if (!isAdmin) {
+        const inschrijfForm = document.createElement("form");
+        inschrijfForm.style.marginTop = "8px";
+
+        const naamInput = document.createElement("input");
+        naamInput.placeholder = "Jouw naam";
+        naamInput.required = true;
+
+        const rolSelect = document.createElement("select");
+        const optTrainer = document.createElement("option");
+        optTrainer.value = "trainer";
+        optTrainer.textContent = "Trainer";
+        const optActeur = document.createElement("option");
+        optActeur.value = "acteur";
+        optActeur.textContent = "Acteur";
+        rolSelect.appendChild(optTrainer);
+        rolSelect.appendChild(optActeur);
+        rolSelect.required = true;
+
+        const btnInschrijven = document.createElement("button");
+        btnInschrijven.type = "submit";
+        btnInschrijven.textContent = "Inschrijven";
+
+        inschrijfForm.appendChild(naamInput);
+        inschrijfForm.appendChild(rolSelect);
+        inschrijfForm.appendChild(btnInschrijven);
+
+        inschrijfForm.addEventListener("submit", e => {
+          e.preventDefault();
+          const naam = naamInput.value.trim();
+          const rol = rolSelect.value;
+          if (!naam || !rol) return;
+
+          if(!inschrijvingen[sessieId]) inschrijvingen[sessieId] = [];
+          // Check dubbele inschrijving
+          const bestaat = inschrijvingen[sessieId].some(i => i.naam.toLowerCase() === naam.toLowerCase());
+          if (bestaat) {
+            alert("Je bent al ingeschreven voor deze sessie.");
+            return;
+          }
+
+          ins
